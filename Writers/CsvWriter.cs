@@ -9,7 +9,7 @@
 
         public void WriteHeader()
         {
-            var columns = new[] { "Datum", "Nummer", "Type", "Tegenpartij", "Bedrag", "Naam", "Adres1", "Adres2", "Adres3", "Mededeling", "Info" };
+            var columns = new[] { "Datum", "Nummer", "Type", "Tegenpartij", "Munt", "Bedrag", "Naam", "Adres1", "Adres2", "Mededeling", "Info" };
             var header = string.Join(_separator, columns);
             _output.WriteLine(header);
         }
@@ -18,14 +18,15 @@
         {
             var values = new[]
             {
-                record.Date,
+                record.Date.ToString("dd/MM/yyy"),
                 record.Number,
                 record.Type,
                 record.Counterparty,
-                record.Amount,
+                record.Currency,
+                record.Amount.ToString("F2"),
                 record.Name,
-                record.Address1,
-                record.Address2,
+                record.GetAddressLine(0),
+                record.GetAddressLine(1),
                 record.Message,
                 record.Info
             };

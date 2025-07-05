@@ -11,37 +11,36 @@ namespace BankStatementsParser.Parsers
         {
             var serializer = new XmlSerializer(typeof(Model.Document));
             var document = (Model.Document?)serializer.Deserialize(_input);
-            if (document is null)
+            if (document?.BankToCustomerStatement?.Statements is null)
                 yield break;
 
-            foreach (var statement in EnumerableOrEmpty(document?.BankToCustomerStatement?.Statements))
+            foreach (var statement in document.BankToCustomerStatement.Statements)
             {
-                foreach (var entry in EnumerableOrEmpty(statement?.Entries))
+                if (statement?.Entries is null)
+                    continue;
+                foreach (var entry in statement.Entries)
                 {
                     var record = new Record();
                     var type = entry.TransactionType;
-                    record.Date = entry.BookingDateTime.Value.ToString("dd/MM/yyy");
+                    record.Date = entry.BookingDateTime.Value;
                     record.Number = entry.Reference;
                     record.Type = TranslateType(entry.Code);
+                    record.Currency = entry.Amount.Currency;
                     var details = entry.Details.TransactionDetails;
                     var parties = details.RelatedParties;
                     if (type == Model.TransactionType.Debit)
                     {
                         record.Counterparty = Format.IBAN(parties?.CreditorAccount?.Id.IBAN);
                         record.Name = parties?.Creditor?.Name;
-                        record.Amount = (-entry.Amount.Value).ToString("F2");
-                        var address = parties?.Creditor?.PostalAddress;
-                        record.Address1 = GetAddressLine(address, 0);
-                        record.Address2 = GetAddressLine(address, 1);
+                        record.Amount = -entry.Amount.Value;
+                        record.Address = parties?.Creditor?.PostalAddress?.AddressLines;
                     }
                     else
                     {
                         record.Counterparty = Format.IBAN(parties?.DebtorAccount?.Id.IBAN);
                         record.Name = parties?.Debtor?.Name;
-                        record.Amount = entry.Amount.Value.ToString("F2");
-                        var address = parties?.Debtor?.PostalAddress;
-                        record.Address1 = GetAddressLine(address, 0);
-                        record.Address2 = GetAddressLine(address, 1);
+                        record.Amount = entry.Amount.Value;
+                        record.Address = parties?.Debtor?.PostalAddress?.AddressLines;
                     }
                     var info = details.RemittanceInformation;
                     if (info.Structured?.Information != null)
@@ -101,18 +100,6 @@ namespace BankStatementsParser.Parsers
                 _ => $"{code}?",
             };
         }
-
-        private static string? GetAddressLine(Model.PostalAddress? address, int index)
-        {
-            var lines = address?.AddressLines;
-            if (lines is null)
-                return null;
-            if (index < 0 || index >= lines.Count)
-                return null;
-            return lines[index];
-        }
-
-        public static IEnumerable<T> EnumerableOrEmpty<T>(IEnumerable<T>? collection) => collection ?? Enumerable.Empty<T>();
     }
 
     namespace Model
