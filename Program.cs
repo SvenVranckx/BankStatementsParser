@@ -6,28 +6,18 @@ namespace BankStatementsParser
     {
         public static void Main(string[] args)
         {
-            const string xmlInput = @"C:\Users\Sven\Desktop\Uittreksels.xml";
-            const string xmlOutput = @"C:\Users\Sven\Desktop\Uittreksels_xml.csv";
-
-            Convert(xmlInput, xmlOutput);
-
-            const string pdfInput = @"C:\Users\Sven\Desktop\Uittreksels.txt";
-            const string pdfOutput = @"C:\Users\Sven\Desktop\Uittreksels_txt.csv";
-
-            Convert(pdfInput, pdfOutput);
+            using var input = new StreamReader(@"C:\Users\Sven\Desktop\Uittreksels.xml", Encoding.UTF8);
+            using var output = new StreamWriter(@"C:\Users\Sven\Desktop\Uittreksels.csv", false, Encoding.UTF8);
+            var parser = new Parsers.Camt053Parser(input);
+            var writer = new Writers.CsvWriter(output);
+            Convert(parser, writer);
         }
 
-        public static void Convert(string inputPath, string outputPath)
+        public static void Convert(IParser parser, IWriter writer)
         {
-            var parser = Path.GetExtension(inputPath).Equals(".xml", StringComparison.OrdinalIgnoreCase) ?
-                Parsers.Camt053Parser.Instance :
-                Parsers.PdfParser.Instance;
-
-            using var input = new StreamReader(inputPath, Encoding.UTF8);
-            using var output = new StreamWriter(outputPath, false, Encoding.UTF8);
-            Record.WriteHeader(output);
-            foreach (var record in parser.Parse(input))
-                record.WriteTo(output);
+            writer.WriteHeader();
+            foreach (var record in parser.ParseRecords())
+                writer.WriteRecord(record);
         }
     }
 }

@@ -1,16 +1,19 @@
-﻿using System.Text;
-using System.Xml.Serialization;
+﻿using System.Xml.Serialization;
 
 namespace BankStatementsParser.Parsers
 {
     public class Camt053Parser : IParser
     {
-        public static readonly IParser Instance = new Camt053Parser();
+        private readonly StreamReader _input;
+        public Camt053Parser(StreamReader input) => _input = input ?? throw new ArgumentNullException(nameof(input));
 
-        public IEnumerable<Record> Parse(StreamReader input)
+        public IEnumerable<Record> ParseRecords()
         {
-            var xml = input.ReadToEnd();
-            var document = ParseXml(xml);
+            var serializer = new XmlSerializer(typeof(Model.Document));
+            var document = (Model.Document?)serializer.Deserialize(_input);
+            if (document is null)
+                yield break;
+
             foreach (var statement in EnumerableOrEmpty(document?.BankToCustomerStatement?.Statements))
             {
                 foreach (var entry in EnumerableOrEmpty(statement?.Entries))
@@ -24,7 +27,7 @@ namespace BankStatementsParser.Parsers
                     var parties = details.RelatedParties;
                     if (type == Model.TransactionType.Debit)
                     {
-                        record.Counterparty = FormatIBAN(parties?.CreditorAccount?.Id.IBAN);
+                        record.Counterparty = Format.IBAN(parties?.CreditorAccount?.Id.IBAN);
                         record.Name = parties?.Creditor?.Name;
                         record.Amount = (-entry.Amount.Value).ToString("F2");
                         var address = parties?.Creditor?.PostalAddress;
@@ -33,7 +36,7 @@ namespace BankStatementsParser.Parsers
                     }
                     else
                     {
-                        record.Counterparty = FormatIBAN(parties?.DebtorAccount?.Id.IBAN);
+                        record.Counterparty = Format.IBAN(parties?.DebtorAccount?.Id.IBAN);
                         record.Name = parties?.Debtor?.Name;
                         record.Amount = entry.Amount.Value.ToString("F2");
                         var address = parties?.Debtor?.PostalAddress;
@@ -42,7 +45,7 @@ namespace BankStatementsParser.Parsers
                     }
                     var info = details.RemittanceInformation;
                     if (info.Structured?.Information != null)
-                        record.Message = FormatStructuredInfo(info.Structured.Information.Reference);
+                        record.Message = Format.StructuredInfo(info.Structured.Information.Reference);
                     else
                     {
                         var information = info.Unstructured?
@@ -109,46 +112,8 @@ namespace BankStatementsParser.Parsers
             return lines[index];
         }
 
-        private static string? FormatIBAN(string? iban)
-        {
-            if (string.IsNullOrEmpty(iban) || iban.Length < 16)
-                return iban;
-            var builder = new StringBuilder(20);
-            for (int i = 0; i < iban.Length; i++)
-            {
-                if (i > 0 && i % 4 == 0)
-                    builder.Append(' ');
-                builder.Append(iban[i]);
-            }
-            return builder.ToString();
-        }
-
-        private static string? FormatStructuredInfo(string? info)
-        {
-            if (string.IsNullOrEmpty(info) || info.Length < 12)
-                return info;
-            var builder = new StringBuilder(20);
-            builder.Append("+++");
-            for (int i = 0; i < info.Length; i++)
-            {
-                builder.Append(info[i]);
-                if (i == 2 || i == 6)
-                    builder.Append('/');
-            }
-            builder.Append("+++");
-            return builder.ToString();
-        }
-
         public static IEnumerable<T> EnumerableOrEmpty<T>(IEnumerable<T>? collection) => collection ?? Enumerable.Empty<T>();
-
-        private static Model.Document? ParseXml(string xml)
-        {
-            var serializer = new XmlSerializer(typeof(Model.Document));
-            using (var reader = new StringReader(xml))
-                return (Model.Document?)serializer.Deserialize(reader);
-        }
     }
-
 
     namespace Model
     {

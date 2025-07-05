@@ -2,6 +2,6 @@
 {
     public interface IParser
     {
-        IEnumerable<Record> Parse(StreamReader source);
+        IEnumerable<Record> ParseRecords();
     }
 }
